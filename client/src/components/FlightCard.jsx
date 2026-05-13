@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 
 function formatDuration(minutes) {
   const h = Math.floor(minutes / 60);
@@ -13,62 +12,80 @@ function formatTime(datetime) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function buildBookingUrl(flight, params) {
-  const flights = flight.flights || [];
-  const origin = flights[0]?.departure_airport?.id || params?.departure_id || '';
-  const dest = flights[flights.length - 1]?.arrival_airport?.id || params?.arrival_id || '';
-  const date = params?.outbound_date || '';
-  return `https://www.google.com/travel/flights?q=flights+from+${origin}+to+${dest}+on+${date}`;
-}
+const DELTA_CABIN  = { '1': 'COACH', '2': 'PREMIUM_SELECT', '3': 'BUSINESS_ELITE', '4': 'FIRST_CLASS' };
+const AA_CABIN     = { '1': 'COACH', '2': 'PREMIUM_ECONOMY', '3': 'BUSINESS', '4': 'FIRST' };
+const UA_CABIN     = { '1': '7', '2': '9', '3': '8', '4': '6' };
 
-function openBookingRequest(req) {
-  if (req.method === 'GET') {
-    const url = new URL(req.url);
-    Object.entries(req.parameters || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-    window.open(url.toString(), '_blank', 'noopener,noreferrer');
-  } else {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = req.url;
-    form.target = '_blank';
-    Object.entries(req.parameters || {}).forEach(([k, v]) => {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = k;
-      input.value = v;
-      form.appendChild(input);
-    });
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
+function buildAirlineUrl(flight, params) {
+  const legs = flight.flights || [];
+  const first = legs[0] || {};
+  const last  = legs[legs.length - 1] || {};
+
+  const from      = first.departure_airport?.id || params?.departure_id || '';
+  const to        = last.arrival_airport?.id    || params?.arrival_id   || '';
+  const date      = params?.outbound_date || '';
+  const ret       = params?.return_date   || '';
+  const adults    = params?.adults || 1;
+  const cabin     = params?.travel_class || '';
+  const roundTrip = !!ret;
+
+  const rawNum  = first.flight_number || '';
+  const code    = rawNum.replace(/[\s\d].*/, '').toUpperCase();
+  const flightNo = rawNum.replace(/\s/g, '');
+
+  switch (code) {
+    case 'DL': {
+      const type = roundTrip ? 'ROUND_TRIP' : 'ONE_WAY';
+      let url = `https://www.delta.com/us/en/booking/book-a-flight/results?tripType=${type}&departure=${from}&arrival=${to}&departDate=${date}&adults=${adults}`;
+      if (DELTA_CABIN[cabin]) url += `&cabinType=${DELTA_CABIN[cabin]}`;
+      if (roundTrip) url += `&returnDate=${ret}`;
+      return url;
+    }
+    case 'AA': {
+      const type = roundTrip ? 'RoundTrip' : 'OneWay';
+      let url = `https://www.aa.com/booking/find-flights?type=${type}&searchType=Revenue&numPax=${adults}&paxType=ADT&outbDate=${date}&origCity=${from}&destCity=${to}`;
+      if (AA_CABIN[cabin]) url += `&cabin=${AA_CABIN[cabin]}`;
+      if (roundTrip) url += `&inbDate=${ret}`;
+      return url;
+    }
+    case 'UA': {
+      const tt = roundTrip ? 2 : 1;
+      let url = `https://www.united.com/ual/en/us/flight-search/book-a-flight/results/rev?f=${from}&t=${to}&d=${date}&tt=${tt}&px=${adults}&taxng=1&newHP=True&idx=1`;
+      if (UA_CABIN[cabin]) url += `&sc=${UA_CABIN[cabin]}`;
+      if (roundTrip) url += `&r=${ret}`;
+      return url;
+    }
+    case 'WN':
+      return `https://www.southwest.com/air/booking/select.html?originationAirportCode=${from}&destinationAirportCode=${to}&departureDate=${date}&departureTimeOfDay=ALL_DAY&tripType=${roundTrip ? 'roundtrip' : 'oneway'}&adult=${adults}&senior=0&fareType=USD&passengerType=ADULT${roundTrip ? `&returnDate=${ret}` : ''}`;
+    case 'B6':
+      return `https://www.jetblue.com/booking/flights?from=${from}&to=${to}&depart=${date}&isMultiCity=false&noOfRoute=1&adults=${adults}&children=0&infants=0&sharedMarket=false&roundTripFaresFlag=${roundTrip}`;
+    case 'AS':
+      return `https://www.alaskaair.com/booking/flights/search?type=${roundTrip ? 'roundtrip' : 'oneway'}&from=${from}&to=${to}&date=${date}&adult=${adults}`;
+    case 'NK':
+      return `https://www.spirit.com/book?origin=${from}&destination=${to}&date=${date}&passengerCount=${adults}`;
+    case 'F9':
+      return `https://booking.flyfrontier.com/flight/search?type=${roundTrip ? 'RT' : 'OW'}&origin=${from}&destination=${to}&departDate=${date}&adult=${adults}`;
+    case 'BA':
+      return `https://www.britishairways.com/travel/booking/public/en_us?eId=106002&dt=${date}&oad=${from}&dad=${to}&pax=${adults}`;
+    case 'LH':
+      return `https://www.lufthansa.com/us/en/flight-search?departure=${from}&arrival=${to}&outwardDate=${date}&adults=${adults}`;
+    case 'EK':
+      return `https://www.emirates.com/us/english/booking/search/?departureId=${from}&arrivalId=${to}&departDate=${date}&adults=${adults}&type=${roundTrip ? 'roundTrip' : 'oneWay'}`;
+    case 'QR':
+      return `https://www.qatarairways.com/en-us/offers/booking?ADT=${adults}&dep=${from}&des=${to}&dom=b&flexi=off&jt=${roundTrip ? 'R' : 'O'}&lang=en&outward=${date}&type=A${roundTrip ? `&inward=${ret}` : ''}`;
+    case 'AF':
+      return `https://www.airfrance.us/US/en/common/home/flights/booking-flight-airfrance.do?origin=${from}&destination=${to}&passengers.ADT=${adults}&segment.origin[0]=${from}&segment.destination[0]=${to}&segment.departureDate[0]=${date}`;
+    default:
+      // Fallback: Kayak filtered by flight number so the exact flight is visible
+      return `https://www.kayak.com/flights/${from}-${to}/${date}${flightNo ? `?fs=flightno=${flightNo}` : ''}`;
   }
 }
 
 export default function FlightCard({ flight, isBest, params }) {
   const [expanded, setExpanded] = useState(false);
-  const [bookingState, setBookingState] = useState('idle');
 
-  const handleBook = async () => {
-    const token = flight.booking_token;
-    if (!token) {
-      window.open(buildBookingUrl(flight, params), '_blank', 'noopener,noreferrer');
-      return;
-    }
-    setBookingState('loading');
-    try {
-      const res = await axios.get('/api/book', { params: { token } });
-      const options = res.data.booking_options || [];
-      const first = options[0];
-      if (!first?.booking_request) {
-        window.open(buildBookingUrl(flight, params), '_blank', 'noopener,noreferrer');
-      } else {
-        openBookingRequest(first.booking_request);
-      }
-      setBookingState('idle');
-    } catch {
-      setBookingState('error');
-      setTimeout(() => setBookingState('idle'), 3000);
-    }
+  const handleBook = () => {
+    window.open(buildAirlineUrl(flight, params), '_blank', 'noopener,noreferrer');
   };
   const flights = flight.flights || [];
   const firstLeg = flights[0] || {};
@@ -111,12 +128,8 @@ export default function FlightCard({ flight, isBest, params }) {
             <button style={styles.detailsBtn} onClick={() => setExpanded(!expanded)}>
               {expanded ? 'Hide details' : 'View details'}
             </button>
-            <button
-              onClick={handleBook}
-              disabled={bookingState === 'loading'}
-              style={{ ...styles.bookBtn, ...(bookingState === 'loading' ? styles.bookBtnLoading : {}) }}
-            >
-              {bookingState === 'loading' ? 'Loading...' : bookingState === 'error' ? 'Try again' : 'Book'}
+            <button onClick={handleBook} style={styles.bookBtn}>
+              Book
             </button>
           </div>
         </div>
@@ -241,7 +254,6 @@ const styles = {
     textAlign: 'center',
     width: '100%',
   },
-  bookBtnLoading: { background: '#a0aec0', cursor: 'default' },
   details: { borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 },
   leg: { display: 'flex', flexDirection: 'column', gap: 4 },
   legHeader: { fontSize: 13, color: '#4a5568' },
