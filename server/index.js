@@ -22,6 +22,7 @@ app.get('/api/flights', async (req, res) => {
     return_date,
     adults = 1,
     stops,
+    travel_class,
     airline,
     currency = 'USD',
   } = req.query;
@@ -43,6 +44,7 @@ app.get('/api/flights', async (req, res) => {
   if (return_date) params.return_date = return_date;
   if (stops === '0') params.stops = 0;
   if (stops === '1') params.stops = 1;
+  if (travel_class) params.travel_class = parseInt(travel_class, 10);
   if (airline) params.include_airlines = airline;
 
   try {

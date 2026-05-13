@@ -29,6 +29,7 @@ export default function SearchForm({ onSearch, loading }) {
     return_date: '',
     adults: 1,
     stops: '',
+    travel_class: '',
     airline: '',
     currency: 'USD',
   });
@@ -112,6 +113,15 @@ export default function SearchForm({ onSearch, loading }) {
             <option value="">Any</option>
             <option value="0">Non-stop only</option>
             <option value="1">1 stop or fewer</option>
+          </select>
+        </Field>
+        <Field label="Cabin Class">
+          <select style={styles.input} value={form.travel_class} onChange={(e) => set('travel_class', e.target.value)}>
+            <option value="">Any</option>
+            <option value="1">Economy</option>
+            <option value="2">Economy Plus</option>
+            <option value="3">Business</option>
+            <option value="4">First</option>
           </select>
         </Field>
         <Field label="Airline">
