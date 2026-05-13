@@ -20,7 +20,16 @@ export default function FlightResults({ results, params }) {
     return 0;
   });
 
-  const total = allFlights.length;
+  const stopsFilter = params?.stops;
+  const displayed =
+    stopsFilter === '0' || stopsFilter === '1'
+      ? sorted.filter((f) => {
+          const numStops = (f.flights?.length || 1) - 1;
+          return numStops <= parseInt(stopsFilter, 10);
+        })
+      : sorted;
+
+  const total = displayed.length;
   const insights = results.price_insights;
 
   return (
@@ -62,7 +71,7 @@ export default function FlightResults({ results, params }) {
         <div style={styles.empty}>No flights found. Try adjusting your search.</div>
       ) : (
         <div style={styles.list}>
-          {sorted.map((flight, i) => (
+          {displayed.map((flight, i) => (
             <FlightCard key={i} flight={flight} isBest={flight._isBest && sortBy === 'best' && i === 0} />
           ))}
         </div>
