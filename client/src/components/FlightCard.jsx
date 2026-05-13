@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
 function formatDuration(minutes) {
   const h = Math.floor(minutes / 60);
@@ -20,8 +21,55 @@ function buildBookingUrl(flight, params) {
   return `https://www.google.com/travel/flights?q=flights+from+${origin}+to+${dest}+on+${date}`;
 }
 
+function openBookingRequest(req) {
+  if (req.method === 'GET') {
+    const url = new URL(req.url);
+    Object.entries(req.parameters || {}).forEach(([k, v]) => url.searchParams.set(k, v));
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  } else {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = req.url;
+    form.target = '_blank';
+    Object.entries(req.parameters || {}).forEach(([k, v]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = v;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  }
+}
+
 export default function FlightCard({ flight, isBest, params }) {
   const [expanded, setExpanded] = useState(false);
+  const [bookingState, setBookingState] = useState('idle');
+
+  const handleBook = async () => {
+    const token = flight.booking_token;
+    if (!token) {
+      window.open(buildBookingUrl(flight, params), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setBookingState('loading');
+    try {
+      const res = await axios.get('/api/book', { params: { token } });
+      const options = res.data.booking_options || [];
+      const first = options[0];
+      if (!first?.booking_request) {
+        window.open(buildBookingUrl(flight, params), '_blank', 'noopener,noreferrer');
+      } else {
+        openBookingRequest(first.booking_request);
+      }
+      setBookingState('idle');
+    } catch {
+      setBookingState('error');
+      setTimeout(() => setBookingState('idle'), 3000);
+    }
+  };
   const flights = flight.flights || [];
   const firstLeg = flights[0] || {};
   const lastLeg = flights[flights.length - 1] || {};
@@ -63,9 +111,13 @@ export default function FlightCard({ flight, isBest, params }) {
             <button style={styles.detailsBtn} onClick={() => setExpanded(!expanded)}>
               {expanded ? 'Hide details' : 'View details'}
             </button>
-            <a href={buildBookingUrl(flight, params)} target="_blank" rel="noopener noreferrer" style={styles.bookBtn}>
-              Book
-            </a>
+            <button
+              onClick={handleBook}
+              disabled={bookingState === 'loading'}
+              style={{ ...styles.bookBtn, ...(bookingState === 'loading' ? styles.bookBtnLoading : {}) }}
+            >
+              {bookingState === 'loading' ? 'Loading...' : bookingState === 'error' ? 'Try again' : 'Book'}
+            </button>
           </div>
         </div>
       </div>
@@ -185,9 +237,11 @@ const styles = {
     padding: '5px 16px',
     fontSize: 13,
     fontWeight: 600,
-    textDecoration: 'none',
+    cursor: 'pointer',
     textAlign: 'center',
+    width: '100%',
   },
+  bookBtnLoading: { background: '#a0aec0', cursor: 'default' },
   details: { borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 },
   leg: { display: 'flex', flexDirection: 'column', gap: 4 },
   legHeader: { fontSize: 13, color: '#4a5568' },

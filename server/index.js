@@ -64,6 +64,19 @@ app.get('/api/flights', async (req, res) => {
   }
 });
 
+app.get('/api/book', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'token is required' });
+  try {
+    const response = await axios.get('https://serpapi.com/search', {
+      params: { engine: 'google_flights_booking', booking_token: token, api_key: process.env.SERPAPI_KEY },
+    });
+    res.json({ booking_options: response.data.booking_options || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data?.error || err.message });
+  }
+});
+
 app.get('/api/airports', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'q is required' });
