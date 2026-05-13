@@ -12,7 +12,15 @@ function formatTime(datetime) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function FlightCard({ flight, isBest }) {
+function buildBookingUrl(flight, params) {
+  const flights = flight.flights || [];
+  const origin = flights[0]?.departure_airport?.id || params?.departure_id || '';
+  const dest = flights[flights.length - 1]?.arrival_airport?.id || params?.arrival_id || '';
+  const date = params?.outbound_date || '';
+  return `https://www.google.com/travel/flights?q=flights+from+${origin}+to+${dest}+on+${date}`;
+}
+
+export default function FlightCard({ flight, isBest, params }) {
   const [expanded, setExpanded] = useState(false);
   const flights = flight.flights || [];
   const firstLeg = flights[0] || {};
@@ -51,9 +59,14 @@ export default function FlightCard({ flight, isBest }) {
         <div style={styles.right}>
           <div style={styles.price}>${flight.price?.toLocaleString()}</div>
           <div style={styles.airline}>{firstLeg.airline || ''}</div>
-          <button style={styles.detailsBtn} onClick={() => setExpanded(!expanded)}>
-            {expanded ? 'Hide details' : 'View details'}
-          </button>
+          <div style={styles.btnRow}>
+            <button style={styles.detailsBtn} onClick={() => setExpanded(!expanded)}>
+              {expanded ? 'Hide details' : 'View details'}
+            </button>
+            <a href={buildBookingUrl(flight, params)} target="_blank" rel="noopener noreferrer" style={styles.bookBtn}>
+              Book
+            </a>
+          </div>
         </div>
       </div>
 
@@ -152,6 +165,7 @@ const styles = {
   right: { textAlign: 'right', minWidth: 100 },
   price: { fontSize: 24, fontWeight: 700, color: '#1a56db' },
   airline: { fontSize: 13, color: '#718096', marginBottom: 8 },
+  btnRow: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' },
   detailsBtn: {
     background: 'none',
     border: '1.5px solid #cbd5e0',
@@ -160,6 +174,19 @@ const styles = {
     fontSize: 13,
     color: '#4a5568',
     fontWeight: 500,
+    cursor: 'pointer',
+  },
+  bookBtn: {
+    display: 'block',
+    background: '#1a56db',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '5px 16px',
+    fontSize: 13,
+    fontWeight: 600,
+    textDecoration: 'none',
+    textAlign: 'center',
   },
   details: { borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 },
   leg: { display: 'flex', flexDirection: 'column', gap: 4 },

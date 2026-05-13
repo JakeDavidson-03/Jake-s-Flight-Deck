@@ -72,7 +72,7 @@ export default function FlightResults({ results, params }) {
       ) : (
         <div style={styles.list}>
           {displayed.map((flight, i) => (
-            <FlightCard key={i} flight={flight} isBest={flight._isBest && sortBy === 'best' && i === 0} />
+            <FlightCard key={i} flight={flight} isBest={flight._isBest && sortBy === 'best' && i === 0} params={params} />
           ))}
         </div>
       )}
