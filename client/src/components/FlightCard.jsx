@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
 function formatDuration(minutes) {
   const h = Math.floor(minutes / 60);
@@ -36,8 +37,53 @@ function buildSkyscannerUrl(flight, params) {
 export default function FlightCard({ flight, isBest, params }) {
   const [expanded, setExpanded] = useState(false);
 
-  const handleBook = () => {
-    window.open(buildSkyscannerUrl(flight, params), '_blank', 'noopener,noreferrer');
+  const handleBook = async () => {
+    // Open a blank tab synchronously in the click handler. If we wait until after
+    // the async API call, browsers treat window.open as a popup and block it —
+    // which is why the old approach kept falling back to the generic Google Flights page.
+    const newTab = window.open('', '_blank');
+
+    const token = flight.booking_token;
+    if (!token) {
+      newTab.location.href = buildSkyscannerUrl(flight, params);
+      return;
+    }
+
+    try {
+      const res = await axios.get('/api/book', { params: { token } });
+      const first = (res.data.booking_options || [])[0];
+
+      if (!first?.booking_request) {
+        newTab.location.href = buildSkyscannerUrl(flight, params);
+        return;
+      }
+
+      const { url, method, parameters = {} } = first.booking_request;
+
+      if (method === 'GET') {
+        const fullUrl = new URL(url);
+        Object.entries(parameters).forEach(([k, v]) => fullUrl.searchParams.set(k, v));
+        newTab.location.href = fullUrl.toString();
+      } else {
+        // For POST bookings, write a self-submitting form into the pre-opened tab.
+        // This works because about:blank is same-origin with the opener.
+        const doc = newTab.document;
+        const form = doc.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        Object.entries(parameters).forEach(([k, v]) => {
+          const input = doc.createElement('input');
+          input.type = 'hidden';
+          input.name = k;
+          input.value = v;
+          form.appendChild(input);
+        });
+        doc.body.appendChild(form);
+        form.submit();
+      }
+    } catch {
+      newTab.location.href = buildSkyscannerUrl(flight, params);
+    }
   };
   const flights = flight.flights || [];
   const firstLeg = flights[0] || {};
